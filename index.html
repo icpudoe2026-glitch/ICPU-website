@@ -431,6 +431,24 @@ const FIREBASE_CONFIG = {
   measurementId: "G-4409Z3ESEM"
 };
 
+/* ▶ LIVE DEMO: the pamphlet QR code opens ?t=demo, which forwards to the
+     exit ticket below. Tickets close 24 hours after they're created, so
+     within 24 hours of the session: create the ticket, paste its ID here
+     (the part after ?t= in its link) and push. While this is "", anyone who
+     scans is told the demo opens during the session. Presenters watch the
+     responses arrive at #/lesson/demo (signed in as the ticket's owner). */
+const DEMO_TICKET = "";
+
+const QUERY = new URLSearchParams(location.search);
+
+// ?sample opens a ready-made teacher dashboard with example classes, kept in
+// the visitor's own browser, so an audience can explore it without an account.
+const SAMPLE_MODE = QUERY.has("sample");
+
+// Local copies (localhost, or the file opened from disk) always run in demo
+// mode, so editing never needs a Firebase login or touches live data.
+const LOCAL_DEMO = ["localhost", "127.0.0.1", ""].includes(location.hostname);
+
 const FB_VERSION = "10.12.2";
 const TICKET_HOURS = 24;
 const TICKET_MS = TICKET_HOURS * 3600 * 1000;
@@ -668,8 +686,8 @@ async function makeFirebaseBackend(cfg) {
    BACKEND B — DEMO MODE (this browser only, via localStorage).
    Same interface, so every screen works identically.
    ------------------------------------------------------------------ */
-function makeDemoBackend() {
-  const KEY = "lp3-demo-db", SKEY = "lp3-demo-session";
+function makeDemoBackend(prefix = "lp3-demo") {
+  const KEY = prefix + "-db", SKEY = prefix + "-session";
   const listeners = new Set();
   let authCb = null;
   function load() {
@@ -711,6 +729,7 @@ function makeDemoBackend() {
       save(d);
       localStorage.setItem(SKEY, uid);
       authCb && authCb(currentUser());
+      return uid;
     },
     async signIn(email, password) {
       email = email.trim().toLowerCase();
@@ -931,7 +950,7 @@ function qrSvg(text) {
     return q.createSvgTag({ cellSize: 4, margin: 0, scalable: true, alt: "QR code for the exit ticket link" });
   } catch (e) { return ""; }
 }
-const ticketUrl = id => `${location.href.split(/[?#]/)[0]}?t=${encodeURIComponent(id)}`;
+const ticketUrl = id => `${location.href.split(/[?#]/)[0]}?t=${encodeURIComponent(id)}${SAMPLE_MODE ? "&sample" : ""}`;
 
 /* ==================================================================
    APP STATE + RENDER LOOP
@@ -946,7 +965,7 @@ const S = {
 function route() {
   const h = location.hash.replace(/^#\/?/, "").split("/");
   if (h[0] === "class" && h[1]) return { name: "class", id: h[1] };
-  if (h[0] === "lesson" && h[1]) return { name: "lesson", id: h[1] };
+  if (h[0] === "lesson" && h[1]) return { name: "lesson", id: h[1] === "demo" && DEMO_TICKET ? DEMO_TICKET : h[1] };
   if (h[0] === "compare") return { name: "compare" };
   return { name: "classes" };
 }
@@ -1001,7 +1020,9 @@ function topbar(r) {
     <div class="who"><span class="who-name">Signed in as <b>${esc(S.user.name || S.user.email)}</b></span>
       <button class="btn ghost sm" data-act="signout">Sign out</button></div>
   </header>
-  ${backend.mode === "demo" ? `<div class="demo-bar">Demo mode: accounts and responses are saved in this browser only. Connect Firebase (see the setup guide) so students can respond from their own devices.</div>` : ""}`;
+  ${backend.mode === "demo" ? `<div class="demo-bar">${SAMPLE_MODE
+    ? "Sample dashboard: example classes and responses, saved on this device only. Explore freely."
+    : "Demo mode: accounts and responses are saved in this browser only. Connect Firebase (see the setup guide) so students can respond from their own devices."}</div>` : ""}`;
 }
 
 /* ---------------- AUTH ---------------- */
@@ -1517,6 +1538,10 @@ async function studentBoot(id) {
   const shell = inner => `<div class="stu"><div class="stu-top">${LOGO}<span>Lesson Pulse</span><span class="anon">Anonymous exit ticket</span></div>${inner}</div>`;
   const msg = (icon, cls, h, p) => shell(`<section class="card stu-msg"><div class="big ${cls}" aria-hidden="true">${icon}</div><h1>${h}</h1><p>${p}</p></section>`);
   const closedMsg = () => msg("⏱", "no", "This exit ticket has closed", `Exit tickets accept responses for ${TICKET_HOURS} hours after your teacher creates them. Ask your teacher for a new link.`);
+  const isDemo = id === "demo";
+  const demoMsg = () => msg("⏱", "no", "The live demo isn't open right now", "It opens during the Lesson Pulse session. Scan this code again then.");
+  if (isDemo) id = DEMO_TICKET;
+  if (isDemo && !id) { app.innerHTML = demoMsg(); return; }
 
   let res;
   try { res = await backend.getLessonPublic(id); }
@@ -1525,7 +1550,7 @@ async function studentBoot(id) {
     app.innerHTML = msg("!", "no", "This page is in demo mode", "Demo mode only works in the one browser where the exit ticket was created, so this device can't open it. Your teacher needs to put the Firebase-connected version online.");
     return;
   }
-  if (res.status !== "open") { app.innerHTML = closedMsg(); return; }
+  if (res.status !== "open") { app.innerHTML = isDemo ? demoMsg() : closedMsg(); return; }
   let done = false;
   try { done = localStorage.getItem("lp3-done-" + id) === "1"; } catch (e) { /* storage blocked */ }
   if (done) { app.innerHTML = msg("✓", "ok", "You've already answered", "Thanks! Your response to this exit ticket is already in."); return; }
@@ -1581,17 +1606,35 @@ async function studentBoot(id) {
 }
 
 /* ==================================================================
+   SAMPLE DASHBOARD  (?sample) — signs in as a sample teacher, creating
+   the account and its sample classes on the first visit.
+   ================================================================== */
+async function openSample() {
+  const email = "sample-teacher@lessonpulse.demo", password = "sample-dashboard";
+  try { await backend.signIn(email, password); }
+  catch (e) {
+    const uid = await backend.signUp({ name: "Sample Teacher", school: "", email, password });
+    await seedSample(backend, uid);
+  }
+}
+
+/* ==================================================================
    BOOT
    ================================================================== */
 (async function boot() {
-  try { backend = FIREBASE_CONFIG ? await makeFirebaseBackend(FIREBASE_CONFIG) : makeDemoBackend(); }
+  try {
+    backend = FIREBASE_CONFIG && !LOCAL_DEMO && !SAMPLE_MODE
+      ? await makeFirebaseBackend(FIREBASE_CONFIG)
+      : makeDemoBackend(SAMPLE_MODE ? "lp3-sample" : undefined);
+  }
   catch (e) {
     console.error(e);
     $("#app").innerHTML = `<main class="page"><section class="card empty"><h2>Couldn't connect to the database</h2><p>Check your internet connection and the Firebase settings at the top of this file, then reload.</p></section></main>`;
     return;
   }
-  const t = new URLSearchParams(location.search).get("t");
-  if (t) studentBoot(t); else teacherBoot();
+  const t = QUERY.get("t");
+  if (t) studentBoot(t);
+  else { if (SAMPLE_MODE) await openSample(); teacherBoot(); }
 })();
 
 </script>
