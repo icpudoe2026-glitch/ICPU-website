@@ -226,6 +226,15 @@ section.card, .form-card { padding: 20px 22px; }
 .cc-stats { display: flex; gap: 14px; font-size: 13px; color: var(--ink-3); margin-top: 8px; }
 .cc-stats b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
 .cc-foot { margin-top: 8px; min-height: 24px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+.tickets { list-style: none; }
+.tickets li + li { border-top: 1px solid var(--line); }
+.ticket-row { display: flex; align-items: center; gap: 14px; margin: 0 -10px; padding: 12px 10px; border-radius: 10px; text-decoration: none; color: inherit; }
+.ticket-row:hover { background: var(--surface-2); }
+.ticket-row:hover .t-go { text-decoration: underline; text-underline-offset: 3px; }
+.t-main { flex: 1; min-width: 0; }
+.t-main b { display: block; font-size: 15px; }
+.t-main small { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); margin-top: 3px; }
+.t-go { flex: none; font-size: 13.5px; font-weight: 650; color: var(--new-ink); }
 .empty { text-align: center; padding: 48px 24px; }
 .empty h2 { font-size: 20px; }
 .empty p { color: var(--ink-2); margin: 8px auto 20px; max-width: 52ch; }
@@ -663,12 +672,13 @@ async function makeFirebaseBackend(cfg) {
       return id;
     },
     closeLesson: id => updateDoc(doc(db, "lessons", id), { expiresAt: Timestamp.fromMillis(Date.now()) }),
+    async deleteLesson(id) {
+      const rs = await getDocs(collection(db, "lessons", id, "responses"));
+      await Promise.all(rs.docs.map(d => deleteDoc(d.ref)));
+      await deleteDoc(doc(db, "lessons", id));
+    },
     async deleteClass(classId, lessonIds) {
-      for (const lid of lessonIds) {
-        const rs = await getDocs(collection(db, "lessons", lid, "responses"));
-        await Promise.all(rs.docs.map(d => deleteDoc(d.ref)));
-        await deleteDoc(doc(db, "lessons", lid));
-      }
+      for (const lid of lessonIds) await this.deleteLesson(lid);
       await deleteDoc(doc(db, "classes", classId));
     },
     async getLessonPublic(id) {
@@ -777,6 +787,7 @@ function makeDemoBackend(prefix = "lp3-demo") {
       return id;
     },
     async closeLesson(id) { const d = load(); if (d.lessons[id]) { d.lessons[id].expiresAtMs = Date.now(); save(d); } },
+    async deleteLesson(id) { const d = load(); delete d.lessons[id]; delete d.responses[id]; save(d); },
     async deleteClass(classId) {
       const d = load();
       Object.values(d.lessons).filter(l => l.classId === classId).forEach(l => { delete d.lessons[l.id]; delete d.responses[l.id]; });
@@ -1149,6 +1160,13 @@ function classView(id) {
       ${st.map(s => `<td class="st-${s.status}" title="${esc(s.label)}: ${STATUS[s.status].label}">${s.n ? `<span class="g" aria-hidden="true">${STATUS[s.status].icon}</span>${s.pct}%` : "–"}</td>`).join("")}
     </tr>`;
   }).join("");
+  const tickets = ls.map(l => {
+    const n = respOf(l.id).length;
+    return `<li><a class="ticket-row" href="#/lesson/${esc(l.id)}">
+      <span class="t-main"><b>${esc(l.title)}</b><small>${fmtDate(l.createdAtMs)} · ${n} response${n === 1 ? "" : "s"} ${isOpen(l) ? `<span class="live-chip">Open</span>` : `<span class="closed-chip">Closed</span>`}</small></span>
+      <span class="t-go">View results →</span>
+    </a></li>`;
+  }).join("");
   return `<main class="page">
     <nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Classes</a><span>/</span><span>${esc(c.name)}</span></nav>
     <div class="page-head">
@@ -1165,6 +1183,11 @@ function classView(id) {
       <p class="err-msg" id="t-err" role="alert"></p>
       <div class="form-actions"><button type="button" class="btn ghost" data-act="cancel-ticket">Cancel</button><button class="btn primary" type="submit">Create exit ticket</button></div>
     </form>` : ""}
+    ${ls.length ? `<section class="card">
+      <div class="card-head"><h2>Exit tickets</h2></div>
+      <p class="card-sub">Open one to see its results, share its QR code, or delete it.</p>
+      <ul class="tickets">${tickets}</ul>
+    </section>` : ""}
     <section class="card">
       <div class="card-head"><h2>Indicators across lessons</h2></div>
       <p class="card-sub">Each cell shows the percentage of students who responded positively. An indicator that stays amber or red across several lessons is the one to work on. ✓ on track (${ON_TRACK}%+) · ! monitor (${MONITOR}–${ON_TRACK - 1}%) · ✕ act (below ${MONITOR}%)</p>
@@ -1274,6 +1297,7 @@ function lessonView(id) {
     ${share}
     ${body}
     ${aboutIndicators()}
+    <div><button class="btn danger-ghost sm" data-act="delete-ticket" data-id="${esc(id)}">Delete this exit ticket</button></div>
   </main>`;
 }
 function groupUnsure(resp) {
@@ -1450,6 +1474,14 @@ document.addEventListener("click", async e => {
   if (act === "close-ticket") {
     if (!confirm("Close this exit ticket now? Students will no longer be able to respond.")) return;
     try { await backend.closeLesson(b.dataset.id); toast("Exit ticket closed"); } catch (err) { toast("Couldn't close it. Check your connection and try again."); }
+    return;
+  }
+  if (act === "delete-ticket") {
+    const l = S.data.lessons[b.dataset.id];
+    if (!l || !confirm(`Delete the exit ticket "${l.title}" and all of its responses? This can't be undone.`)) return;
+    location.hash = `#/class/${l.classId}`;
+    try { await backend.deleteLesson(l.id); toast("Exit ticket deleted"); }
+    catch (err) { toast("Couldn't delete the exit ticket. Try again."); }
     return;
   }
   if (act === "delete-class") {
