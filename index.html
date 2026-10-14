@@ -608,7 +608,23 @@ async function makeFirebaseBackend(cfg) {
     watchTeacherData(uid, cb, onErr) {
       const st = { classes: {}, lessons: {}, responses: {} };
       const respUnsubs = {};
+      let stopped = false;
       const emit = debounce(() => cb({ classes: { ...st.classes }, lessons: { ...st.lessons }, responses: { ...st.responses } }), 40);
+      // A new ticket appears here before the server has finished saving it,
+      // so the security rules can briefly refuse to list its responses, which
+      // ends the listener. Retry with backoff while the ticket still exists,
+      // otherwise live updates stop until the page is reloaded.
+      const watchResponses = (id, attempt = 0) => {
+        respUnsubs[id] = onSnapshot(collection(db, "lessons", id, "responses"), rs => {
+          st.responses[id] = rs.docs.map(r => r.data());
+          emit();
+        }, () => {
+          delete respUnsubs[id];
+          setTimeout(() => {
+            if (!stopped && st.lessons[id] && !respUnsubs[id]) watchResponses(id, attempt + 1);
+          }, Math.min(30000, 1000 * 2 ** attempt));
+        });
+      };
       const u1 = onSnapshot(query(collection(db, "classes"), where("ownerUid", "==", uid)), snap => {
         st.classes = {};
         snap.forEach(d => { st.classes[d.id] = { id: d.id, ...d.data() }; });
@@ -621,19 +637,14 @@ async function makeFirebaseBackend(cfg) {
           const x = d.data();
           seen.add(d.id);
           st.lessons[d.id] = { ...x, id: d.id, expiresAtMs: x.expiresAt && x.expiresAt.toMillis ? x.expiresAt.toMillis() : 0 };
-          if (!respUnsubs[d.id]) {
-            respUnsubs[d.id] = onSnapshot(collection(db, "lessons", d.id, "responses"), rs => {
-              st.responses[d.id] = rs.docs.map(r => r.data());
-              emit();
-            }, () => { /* lesson deleted mid-listen */ });
-          }
+          if (!respUnsubs[d.id]) watchResponses(d.id);
         });
         Object.keys(respUnsubs).forEach(id => {
           if (!seen.has(id)) { respUnsubs[id](); delete respUnsubs[id]; delete st.responses[id]; }
         });
         emit();
       }, onErr);
-      return () => { u1(); u2(); Object.values(respUnsubs).forEach(f => f()); };
+      return () => { stopped = true; u1(); u2(); Object.values(respUnsubs).forEach(f => f()); };
     },
     async createClass(uid, data) {
       const r = await addDoc(collection(db, "classes"), { ...data, ownerUid: uid, createdAtMs: Date.now() });
