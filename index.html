@@ -198,6 +198,7 @@ section.card, .form-card { padding: 20px 22px; }
 .syl-opt small { display: block; font-size: 12.5px; color: var(--ink-3); }
 .syl-opt:has(input:checked) { border-color: var(--brand); background: var(--surface); }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.demo-opt { margin-top: 14px; }
 .hint { font-size: 12.5px; color: var(--ink-3); margin-top: 10px; }
 .err-msg { color: var(--crit-ink); font-size: 13px; font-weight: 600; margin-top: 10px; min-height: 1em; }
 
@@ -440,13 +441,13 @@ const FIREBASE_CONFIG = {
   measurementId: "G-4409Z3ESEM"
 };
 
-/* ▶ LIVE DEMO: the pamphlet QR code opens ?t=demo, which forwards to the
-     exit ticket below. Tickets close 24 hours after they're created, so
-     within 24 hours of the session: create the ticket, paste its ID here
-     (the part after ?t= in its link) and push. While this is "", anyone who
-     scans is told the demo opens during the session. Presenters watch the
-     responses arrive at #/lesson/demo (signed in as the ticket's owner). */
-const DEMO_TICKET = "";
+/* ▶ LIVE DEMO: the pamphlet QR code opens ?t=demo. Ticking "Use as the live
+     demo ticket" when creating an exit ticket saves it under this ID,
+     replacing the previous demo ticket, so that link always opens the latest
+     one. Presenters watch it at #/lesson/demo (signed in as its owner).
+     Between sessions, anyone who scans is told the demo opens during the
+     session. */
+const DEMO_ID = "demo";
 
 const QUERY = new URLSearchParams(location.search);
 
@@ -660,7 +661,7 @@ async function makeFirebaseBackend(cfg) {
       return r.id;
     },
     async createLesson(uid, data, opts = {}) {
-      const id = randomId(20);
+      const id = opts.id || randomId(20);
       const now = Date.now();
       await setDoc(doc(db, "lessons", id), {
         ...data, ownerUid: uid, createdAtMs: opts.createdAtMs || now,
@@ -780,7 +781,7 @@ function makeDemoBackend(prefix = "lp3-demo") {
       return id;
     },
     async createLesson(uid, data, opts = {}) {
-      const d = load(), id = randomId(20), now = Date.now();
+      const d = load(), id = opts.id || randomId(20), now = Date.now();
       d.lessons[id] = { ...data, id, ownerUid: uid, createdAtMs: opts.createdAtMs || now, expiresAtMs: now + TICKET_MS };
       d.responses[id] = [];
       save(d);
@@ -987,7 +988,7 @@ const S = {
 function route() {
   const h = location.hash.replace(/^#\/?/, "").split("/");
   if (h[0] === "class" && h[1]) return { name: "class", id: h[1] };
-  if (h[0] === "lesson" && h[1]) return { name: "lesson", id: h[1] === "demo" && DEMO_TICKET ? DEMO_TICKET : h[1] };
+  if (h[0] === "lesson" && h[1]) return { name: "lesson", id: h[1] };
   if (h[0] === "compare") return { name: "compare" };
   return { name: "classes" };
 }
@@ -1160,10 +1161,11 @@ function classView(id) {
       ${st.map(s => `<td class="st-${s.status}" title="${esc(s.label)}: ${STATUS[s.status].label}">${s.n ? `<span class="g" aria-hidden="true">${STATUS[s.status].icon}</span>${s.pct}%` : "–"}</td>`).join("")}
     </tr>`;
   }).join("");
+  const demo = S.data.lessons[DEMO_ID];
   const tickets = ls.map(l => {
     const n = respOf(l.id).length;
     return `<li><a class="ticket-row" href="#/lesson/${esc(l.id)}">
-      <span class="t-main"><b>${esc(l.title)}</b><small>${fmtDate(l.createdAtMs)} · ${n} response${n === 1 ? "" : "s"} ${isOpen(l) ? `<span class="live-chip">Open</span>` : `<span class="closed-chip">Closed</span>`}</small></span>
+      <span class="t-main"><b>${esc(l.title)}</b><small>${fmtDate(l.createdAtMs)} · ${n} response${n === 1 ? "" : "s"} ${isOpen(l) ? `<span class="live-chip">Open</span>` : `<span class="closed-chip">Closed</span>`}${l.id === DEMO_ID ? `<span class="tag">Live demo</span>` : ""}</small></span>
       <span class="t-go">View results →</span>
     </a></li>`;
   }).join("");
@@ -1180,6 +1182,7 @@ function classView(id) {
         <label class="fld"><span>Learning intention <em>(optional, shown to students)</em></span><input id="t-intent" maxlength="160" placeholder="e.g. We are learning to find a fraction of a whole number"></label>
       </div>
       <p class="hint">You'll get a link and QR code for students. It stops accepting responses ${TICKET_HOURS} hours after you create it.</p>
+      ${SAMPLE_MODE ? "" : `<label class="syl-opt demo-opt"><input type="checkbox" id="t-demo"><span><b>Use as the live demo ticket</b><small>The pamphlet QR code (link ending ?t=${DEMO_ID}) will open this ticket.${demo ? ` This replaces the current demo ticket, "${esc(demo.title)}", and deletes its ${respOf(DEMO_ID).length} response${respOf(DEMO_ID).length === 1 ? "" : "s"}.` : ""}</small></span></label>`}
       <p class="err-msg" id="t-err" role="alert"></p>
       <div class="form-actions"><button type="button" class="btn ghost" data-act="cancel-ticket">Cancel</button><button class="btn primary" type="submit">Create exit ticket</button></div>
     </form>` : ""}
@@ -1291,7 +1294,7 @@ function lessonView(id) {
     <nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Classes</a><span>/</span><a href="#/class/${esc(l.classId)}">${esc(c.name)}</a><span>/</span><span>${esc(l.title)}</span></nav>
     <div class="page-head"><div>
       <h1>${esc(l.title)}</h1>
-      <p class="sub">${esc(c.name)} · Year ${esc(c.yearLevel)} · ${esc(c.subject)} · ${fmtDate(l.createdAtMs)}</p>
+      <p class="sub">${esc(c.name)} · Year ${esc(c.yearLevel)} · ${esc(c.subject)} · ${fmtDate(l.createdAtMs)}${id === DEMO_ID ? `<span class="tag">Live demo</span>` : ""}</p>
       ${l.intention ? `<div class="intent"><span>Learning intention</span>${esc(l.intention)}</div>` : ""}
     </div></div>
     ${share}
@@ -1540,10 +1543,17 @@ document.addEventListener("submit", async e => {
     const r = route(), c = S.data.classes[r.id];
     const title = $("#t-title").value.trim(), intention = $("#t-intent").value.trim();
     if (!title) { $("#t-err").textContent = "Give the lesson a title so you can find it later."; return; }
+    const asDemo = !!($("#t-demo") && $("#t-demo").checked), prev = asDemo && S.data.lessons[DEMO_ID];
+    if (prev && !confirm(`Replace the current demo ticket "${prev.title}"? Its ${respOf(DEMO_ID).length} responses will be deleted. This can't be undone.`)) return;
     try {
-      const id = await backend.createLesson(S.user.uid, { classId: c.id, title, intention, className: c.name, yearLevel: c.yearLevel, subject: c.subject });
-      S.ui.newTicket = false; location.hash = `#/lesson/${id}`; toast("Exit ticket created. Share the link or QR code."); render();
-    } catch (err) { $("#t-err").textContent = "Couldn't create the exit ticket. Check your connection and try again."; }
+      if (prev) await backend.deleteLesson(DEMO_ID);
+      const id = await backend.createLesson(S.user.uid, { classId: c.id, title, intention, className: c.name, yearLevel: c.yearLevel, subject: c.subject }, asDemo ? { id: DEMO_ID } : {});
+      S.ui.newTicket = false; location.hash = `#/lesson/${id}`; toast(asDemo ? "Live demo ticket created. The pamphlet QR code now opens it." : "Exit ticket created. Share the link or QR code."); render();
+    } catch (err) {
+      $("#t-err").textContent = asDemo
+        ? "Couldn't make this the demo ticket. If the current demo ticket belongs to another account, delete it from that account first."
+        : "Couldn't create the exit ticket. Check your connection and try again.";
+    }
   }
 });
 
@@ -1581,21 +1591,21 @@ async function studentBoot(id) {
   const shell = inner => `<div class="stu"><div class="stu-top">${LOGO}<span>Lesson Pulse</span><span class="anon">Anonymous exit ticket</span></div>${inner}</div>`;
   const msg = (icon, cls, h, p) => shell(`<section class="card stu-msg"><div class="big ${cls}" aria-hidden="true">${icon}</div><h1>${h}</h1><p>${p}</p></section>`);
   const closedMsg = () => msg("⏱", "no", "This exit ticket has closed", `Exit tickets accept responses for ${TICKET_HOURS} hours after your teacher creates them. Ask your teacher for a new link.`);
-  const isDemo = id === "demo";
+  const isDemo = id === DEMO_ID;
   const demoMsg = () => msg("⏱", "no", "The live demo isn't open right now", "It opens during the Lesson Pulse session. Scan this code again then.");
-  if (isDemo) id = DEMO_TICKET;
-  if (isDemo && !id) { app.innerHTML = demoMsg(); return; }
 
   let res;
   try { res = await backend.getLessonPublic(id); }
   catch (e) { app.innerHTML = msg("!", "no", "Couldn't load the exit ticket", "Check your internet connection, then reload this page."); return; }
-  if (res.status === "missing" && backend.mode === "demo") {
+  if (res.status === "missing" && backend.mode === "demo" && !isDemo) {
     app.innerHTML = msg("!", "no", "This page is in demo mode", "Demo mode only works in the one browser where the exit ticket was created, so this device can't open it. Your teacher needs to put the Firebase-connected version online.");
     return;
   }
   if (res.status !== "open") { app.innerHTML = isDemo ? demoMsg() : closedMsg(); return; }
+  // The demo ID is reused every session, so remember which demo ticket was answered.
+  const doneKey = "lp3-done-" + id + (isDemo ? "-" + res.lesson.expiresAtMs : "");
   let done = false;
-  try { done = localStorage.getItem("lp3-done-" + id) === "1"; } catch (e) { /* storage blocked */ }
+  try { done = localStorage.getItem(doneKey) === "1"; } catch (e) { /* storage blocked */ }
   if (done) { app.innerHTML = msg("✓", "ok", "You've already answered", "Thanks! Your response to this exit ticket is already in."); return; }
 
   const L = res.lesson;
@@ -1637,7 +1647,7 @@ async function studentBoot(id) {
     btn.disabled = true; btn.textContent = "Sending…";
     try {
       await backend.submitResponse(id, r);
-      try { localStorage.setItem("lp3-done-" + id, "1"); } catch (err) { /* storage blocked */ }
+      try { localStorage.setItem(doneKey, "1"); } catch (err) { /* storage blocked */ }
       app.innerHTML = msg("✓", "ok", "Thanks, your answers are in", "Your teacher will use the class's responses to plan the next lesson.");
       window.scrollTo(0, 0);
     } catch (err) {
