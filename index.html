@@ -152,6 +152,8 @@ section.card, .form-card { padding: 20px 22px; }
 
 /* ---------- page ---------- */
 .page { max-width: 1120px; margin: 0 auto; padding: 28px 24px 64px; display: flex; flex-direction: column; gap: 18px; }
+.page.full { max-width: none; padding-left: 32px; padding-right: 32px; } /* live demo ticket, shown on a projector */
+.page.full .chart svg { max-height: 240px; }
 .page-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .page-head > div:first-child { flex: 1; min-width: 260px; }
 .page-head .sub { color: var(--ink-2); margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -1291,7 +1293,7 @@ function lessonView(id) {
     </div>`;
   }
 
-  return `<main class="page">
+  return `<main class="page${id === DEMO_ID ? " full" : ""}">
     <nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Classes</a><span>/</span><a href="#/class/${esc(l.classId)}">${esc(c.name)}</a><span>/</span><span>${esc(l.title)}</span></nav>
     <div class="page-head"><div>
       <h1>${esc(l.title)}</h1>
