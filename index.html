@@ -14,16 +14,26 @@
    ============================================================ */
 :root {
   color-scheme: light;
-  --bg: #f3f5f8;
+  --bg: #f5f8fc;
   --surface: #ffffff;
-  --surface-2: #edf1f6;
-  --ink: #0f1d33;
+  --surface-2: #ebf0f7;
+  --ink: #14233a;
   --ink-2: #45536a;
-  --ink-3: #6b778b;
-  --line: #dde3eb;
-  --brand: #12305c;
+  --ink-3: #5f6c80;
+  --line: #dce3ed;
+  /* Modern Education palette. Navy is shared branding (logo, headings,
+     navigation); teacher screens use purple accents, the student exit
+     ticket uses teal (.stu swaps --accent*), gold is for highlights. */
+  --brand: #1d4e89;
   --brand-ink: #ffffff;
-  --focus: #2a78d6;
+  --brand-text: #1d4e89;
+  --brand-tint: #e6eef8;
+  --teacher: #6544a7; --teacher-hover: #553893; --teacher-text: #6544a7; --teacher-tint: #efeaf8;
+  --student: #007a78; --student-hover: #006361; --student-text: #006d6b; --student-tint: #e1f2f1;
+  --accent: var(--teacher); --accent-hover: var(--teacher-hover); --accent-text: var(--teacher-text); --accent-tint: var(--teacher-tint);
+  --accent-ink: #ffffff;
+  --gold: #f3c86a; --gold-tint: #fdf4de; --gold-ink: #664a08;
+  --focus: var(--accent-text);
   --new: #2a78d6;
   --old: #eb6834;
   --new-tint: #e4eefb;
@@ -56,9 +66,12 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0b1119; --surface: #131b26; --surface-2: #1b2532;
-    --ink: #edf2f8; --ink-2: #b3bfce; --ink-3: #8692a4; --line: #263243;
-    --brand: #3987e5; --brand-ink: #ffffff; --focus: #6da7ec;
+    --bg: #0b1220; --surface: #131c2b; --surface-2: #1b2638;
+    --ink: #edf2f8; --ink-2: #b3bfce; --ink-3: #8d99ab; --line: #27344a;
+    --brand: #2c64a8; --brand-ink: #ffffff; --brand-text: #a9c7ec; --brand-tint: #172b47;
+    --teacher: #7a58c4; --teacher-hover: #6a49b3; --teacher-text: #bca8ee; --teacher-tint: #2e2550;
+    --student: #007a78; --student-hover: #006966; --student-text: #4fc3be; --student-tint: #114443;
+    --gold-tint: #2a220e; --gold-ink: #f3c86a;
     --new: #3987e5; --old: #d95926; --new-tint: #14263e; --old-tint: #35200f;
     --new-ink: #8dbcf2; --old-ink: #f0a37f;
     --ord-1: #184f95; --ord-2: #256abf; --ord-3: #3987e5; --ord-4: #6da7ec; --ord-ink-1: #ffffff; --ord-ink-4: #0b1119;
@@ -71,9 +84,12 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0b1119; --surface: #131b26; --surface-2: #1b2532;
-  --ink: #edf2f8; --ink-2: #b3bfce; --ink-3: #8692a4; --line: #263243;
-  --brand: #3987e5; --brand-ink: #ffffff; --focus: #6da7ec;
+  --bg: #0b1220; --surface: #131c2b; --surface-2: #1b2638;
+  --ink: #edf2f8; --ink-2: #b3bfce; --ink-3: #8d99ab; --line: #27344a;
+  --brand: #2c64a8; --brand-ink: #ffffff; --brand-text: #a9c7ec; --brand-tint: #172b47;
+  --teacher: #7a58c4; --teacher-hover: #6a49b3; --teacher-text: #bca8ee; --teacher-tint: #2e2550;
+  --student: #007a78; --student-hover: #006966; --student-text: #4fc3be; --student-tint: #114443;
+  --gold-tint: #2a220e; --gold-ink: #f3c86a;
   --new: #3987e5; --old: #d95926; --new-tint: #14263e; --old-tint: #35200f;
   --new-ink: #8dbcf2; --old-ink: #f0a37f;
   --ord-1: #184f95; --ord-2: #256abf; --ord-3: #3987e5; --ord-4: #6da7ec; --ord-ink-1: #ffffff; --ord-ink-4: #0b1119;
@@ -94,7 +110,8 @@ body {
   background: var(--bg); color: var(--ink);
   min-height: 100vh;
 }
-h1, h2, h3 { text-wrap: balance; letter-spacing: -0.015em; }
+h1, h2, h3 { text-wrap: balance; letter-spacing: -0.015em; color: var(--brand-text); }
+::selection { background: var(--gold); color: #14233a; }
 h1 { font-size: 28px; font-weight: 800; line-height: 1.15; }
 h2 { font-size: 17px; font-weight: 700; }
 h3 { font-size: 16px; font-weight: 700; }
@@ -112,16 +129,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-radius: 10px; padding: 11px 16px; border: 1.5px solid transparent;
   cursor: pointer; text-decoration: none; transition: background .12s, border-color .12s;
 }
-.btn.primary { background: var(--brand); color: var(--brand-ink); }
-.btn.primary:hover { filter: brightness(1.12); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { background: var(--accent-hover); }
 .btn.ghost { background: var(--surface); border-color: var(--line); color: var(--ink); }
-.btn.ghost:hover { border-color: var(--ink-3); }
+.btn.ghost:hover { border-color: var(--accent-text); }
 .btn.danger-ghost { background: transparent; border-color: var(--line); color: var(--crit-ink); }
 .btn.danger-ghost:hover { border-color: var(--crit); }
 .btn.sm { font-size: 13px; padding: 8px 12px; }
 .btn.wide { width: 100%; }
 .btn[disabled] { opacity: .55; cursor: progress; }
-.link-btn { background: none; border: 0; color: var(--new-ink); font-weight: 600; font-size: 13.5px; cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn { background: none; border: 0; color: var(--accent-text); font-weight: 600; font-size: 13.5px; cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ---------- surfaces ---------- */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -137,16 +154,16 @@ section.card, .form-card { padding: 20px 22px; }
   padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 30;
 }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 800; font-size: 17px; letter-spacing: -0.02em; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 800; font-size: 17px; letter-spacing: -0.02em; color: var(--brand-text); }
 .logo { width: 30px; height: 30px; flex: none; }
 .nav { display: flex; gap: 4px; }
 .nav a { text-decoration: none; font-size: 14px; font-weight: 600; color: var(--ink-2); padding: 8px 12px; border-radius: 8px; }
 .nav a:hover { background: var(--surface-2); }
-.nav a.on { color: var(--ink); background: var(--surface-2); }
+.nav a.on { color: var(--brand-text); background: var(--brand-tint); }
 .who { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 13.5px; color: var(--ink-2); }
 .who b { color: var(--ink); font-weight: 650; }
 .demo-bar {
-  background: var(--warn-bg); color: var(--warn-ink); font-size: 13px; font-weight: 550;
+  background: var(--gold-tint); color: var(--gold-ink); font-size: 13px; font-weight: 550;
   padding: 8px 24px; border-bottom: 1px solid var(--line);
 }
 
@@ -158,7 +175,7 @@ section.card, .form-card { padding: 20px 22px; }
 .page-head > div:first-child { flex: 1; min-width: 260px; }
 .page-head .sub { color: var(--ink-2); margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .crumbs { font-size: 13px; color: var(--ink-3); display: flex; gap: 6px; flex-wrap: wrap; }
-.crumbs a { color: var(--ink-2); text-decoration: none; font-weight: 600; }
+.crumbs a { color: var(--brand-text); text-decoration: none; font-weight: 600; }
 .crumbs a:hover { text-decoration: underline; }
 .footer-note { font-size: 12px; color: var(--ink-3); max-width: 80ch; }
 
@@ -170,6 +187,7 @@ section.card, .form-card { padding: 20px 22px; }
 .syl-pill.old { background: var(--old-tint); color: var(--old-ink); }
 .syl-pill.old::before { background: var(--old); }
 .tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+.tag.gold { color: var(--gold-ink); background: var(--gold-tint); border-color: var(--gold); }
 .live-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--good-ink); background: var(--good-bg); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
 .live-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--good); animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
@@ -195,10 +213,10 @@ section.card, .form-card { padding: 20px 22px; }
 .syl legend { font-size: 13px; font-weight: 650; color: var(--ink-2); margin-bottom: 8px; }
 .syl-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .syl-opt { display: flex; gap: 10px; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; background: var(--bg); }
-.syl-opt input { margin-top: 3px; accent-color: var(--brand); width: 16px; height: 16px; flex: none; }
+.syl-opt input { margin-top: 3px; accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
 .syl-opt b { display: block; font-size: 14.5px; }
 .syl-opt small { display: block; font-size: 12.5px; color: var(--ink-3); }
-.syl-opt:has(input:checked) { border-color: var(--brand); background: var(--surface); }
+.syl-opt:has(input:checked) { border-color: var(--accent); background: var(--surface); }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 .demo-opt { margin-top: 14px; }
 .hint { font-size: 12.5px; color: var(--ink-3); margin-top: 10px; }
@@ -211,18 +229,18 @@ section.card, .form-card { padding: 20px 22px; }
 .auth-pitch p { font-size: 17px; color: var(--ink-2); margin-top: 16px; max-width: 46ch; }
 .auth-points { list-style: none; margin-top: 26px; display: flex; flex-direction: column; gap: 12px; }
 .auth-points li { display: flex; gap: 10px; font-size: 14.5px; color: var(--ink-2); max-width: 50ch; }
-.auth-points li::before { content: "✓"; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--new-tint); color: var(--new-ink); font-size: 12px; font-weight: 800; display: grid; place-items: center; }
+.auth-points li::before { content: "✓"; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-tint); color: var(--accent-text); font-size: 12px; font-weight: 800; display: grid; place-items: center; }
 .auth-card { padding: 26px; }
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--surface-2); border-radius: 10px; padding: 4px; margin-bottom: 20px; }
 .seg button { border: 0; background: transparent; font-size: 14px; font-weight: 650; color: var(--ink-2); padding: 9px; border-radius: 7px; cursor: pointer; }
-.seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(15,29,51,.12); }
+.seg button.on { background: var(--surface); color: var(--accent-text); box-shadow: 0 1px 3px rgba(15,29,51,.12); }
 .auth-form { display: flex; flex-direction: column; gap: 14px; }
 .auth-foot { margin-top: 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-3); }
 
 /* ---------- classes ---------- */
 .class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
 .class-card { padding: 18px 20px; text-decoration: none; display: flex; flex-direction: column; gap: 6px; transition: border-color .12s, transform .12s; }
-.class-card:hover { border-color: var(--ink-3); transform: translateY(-1px); }
+.class-card:hover { border-color: var(--accent-text); transform: translateY(-1px); }
 .cc-top { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
 .class-card h3 { font-size: 19px; }
 .class-card .meta { font-size: 13.5px; color: var(--ink-2); }
@@ -237,7 +255,7 @@ section.card, .form-card { padding: 20px 22px; }
 .t-main { flex: 1; min-width: 0; }
 .t-main b { display: block; font-size: 15px; }
 .t-main small { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); margin-top: 3px; }
-.t-go { flex: none; font-size: 13.5px; font-weight: 650; color: var(--new-ink); }
+.t-go { flex: none; font-size: 13.5px; font-weight: 650; color: var(--accent-text); }
 .empty { text-align: center; padding: 48px 24px; }
 .empty h2 { font-size: 20px; }
 .empty p { color: var(--ink-2); margin: 8px auto 20px; max-width: 52ch; }
@@ -295,7 +313,7 @@ table.heat td .g { font-size: 9.5px; margin-right: 3px; opacity: .9; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); margin: 4px 0 8px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-.flag { margin-top: 10px; font-size: 13.5px; color: var(--ink-2); background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.flag { margin-top: 10px; font-size: 13.5px; color: var(--ink-2); background: var(--gold-tint); box-shadow: inset 3px 0 0 var(--gold); border-radius: 10px; padding: 10px 12px; }
 .flag b { color: var(--ink); }
 .sub-h { font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 14px 0 2px; }
 .steps { list-style: none; display: flex; flex-direction: column; }
@@ -303,11 +321,11 @@ table.heat td .g { font-size: 9.5px; margin-right: 3px; opacity: .9; }
 .steps li:last-child { border-bottom: 0; }
 .steps b { display: block; font-size: 14.5px; }
 .steps p { font-size: 13.5px; color: var(--ink-2); margin-top: 2px; }
-.steps small { display: inline-block; font-size: 11.5px; font-weight: 650; color: var(--new-ink); margin-top: 4px; }
+.steps small { display: inline-block; font-size: 11.5px; font-weight: 650; color: var(--brand-text); margin-top: 4px; }
 .unsure { list-style: none; }
 .unsure li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink-2); }
 .unsure li:last-child { border-bottom: 0; }
-.count { flex: none; font-size: 12px; font-weight: 750; color: var(--new-ink); background: var(--new-tint); border-radius: 999px; padding: 1px 9px; font-variant-numeric: tabular-nums; }
+.count { flex: none; font-size: 12px; font-weight: 750; color: var(--accent-text); background: var(--accent-tint); border-radius: 999px; padding: 1px 9px; font-variant-numeric: tabular-nums; }
 .waiting { text-align: center; padding: 40px 24px; }
 .waiting h2 { font-size: 20px; }
 .waiting p { color: var(--ink-2); margin-top: 6px; }
@@ -335,7 +353,7 @@ table.dv td b { color: var(--ink); }
 .caveat { font-size: 13px; color: var(--ink-2); background: var(--surface-2); border-radius: 12px; padding: 14px 16px; max-width: 90ch; }
 .caveat b { color: var(--ink); }
 .toggle { margin-left: auto; font-size: 12px; font-weight: 650; color: var(--ink-2); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
-.toggle:hover { border-color: var(--ink-3); }
+.toggle:hover { border-color: var(--accent-text); }
 
 /* ---------- projector modal ---------- */
 .modal { position: fixed; inset: 0; z-index: 60; background: rgba(8,14,24,.82); display: grid; place-items: center; padding: 24px; }
@@ -347,8 +365,12 @@ table.dv td b { color: var(--ink); }
 .modal-close { position: absolute; top: 14px; right: 14px; }
 
 /* ---------- student ---------- */
-.stu { max-width: 640px; margin: 0 auto; padding: 18px 16px 56px; display: flex; flex-direction: column; gap: 12px; }
-.stu-top { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; padding: 4px 2px 6px; }
+.stu {
+  max-width: 640px; margin: 0 auto; padding: 18px 16px 56px; display: flex; flex-direction: column; gap: 12px;
+  --accent: var(--student); --accent-hover: var(--student-hover); --accent-text: var(--student-text); --accent-tint: var(--student-tint);
+  --focus: var(--student-text);
+}
+.stu-top { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; padding: 4px 2px 6px; color: var(--brand-text); }
 .stu-top .logo { width: 26px; height: 26px; }
 .stu-top .anon { margin-left: auto; font-size: 12px; font-weight: 650; color: var(--ink-3); }
 .stu-intro { padding: 20px; }
@@ -357,7 +379,7 @@ table.dv td b { color: var(--ink); }
 .stu-intro .note { font-size: 13.5px; color: var(--ink-2); margin-top: 10px; }
 fieldset.q { border: 1px solid var(--line); padding: 16px 16px 18px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
 fieldset.q legend { float: left; width: 100%; font-size: 16px; font-weight: 700; line-height: 1.35; margin-bottom: 12px; display: flex; gap: 10px; }
-fieldset.q legend .qn { flex: none; width: 24px; height: 24px; border-radius: 7px; background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; font-weight: 800; display: grid; place-items: center; margin-top: 1px; }
+fieldset.q legend .qn { flex: none; width: 24px; height: 24px; border-radius: 7px; background: var(--accent-tint); color: var(--accent-text); font-size: 12.5px; font-weight: 800; display: grid; place-items: center; margin-top: 1px; }
 fieldset.q legend small { display: block; font-weight: 500; font-size: 13px; color: var(--ink-3); margin-top: 2px; }
 fieldset.q.missing { border-color: var(--crit); }
 fieldset.q.missing legend .qn { background: var(--crit-bg); color: var(--crit-ink); }
@@ -372,8 +394,8 @@ fieldset.q.missing legend .qn { background: var(--crit-bg); color: var(--crit-in
   background: var(--bg); border: 1.5px solid var(--line); border-radius: 11px; padding: 8px 6px;
   transition: border-color .1s, background .1s;
 }
-.opt:hover span { border-color: var(--ink-3); }
-.opt input:checked + span { background: var(--new-tint); border-color: var(--new); color: var(--ink); }
+.opt:hover span { border-color: var(--accent-text); }
+.opt input:checked + span { background: var(--accent-tint); border-color: var(--accent-text); color: var(--ink); }
 .opt input:focus-visible + span { outline: 2.5px solid var(--focus); outline-offset: 2px; }
 fieldset.q textarea { clear: both; display: block; width: 100%; min-height: 76px; resize: vertical; font-size: 15px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 11px; padding: 10px 12px; color: var(--ink); }
 fieldset.q textarea:focus { outline: none; border-color: var(--focus); }
@@ -1167,7 +1189,7 @@ function classView(id) {
   const tickets = ls.map(l => {
     const n = respOf(l.id).length;
     return `<li><a class="ticket-row" href="#/lesson/${esc(l.id)}">
-      <span class="t-main"><b>${esc(l.title)}</b><small>${fmtDate(l.createdAtMs)} · ${n} response${n === 1 ? "" : "s"} ${isOpen(l) ? `<span class="live-chip">Open</span>` : `<span class="closed-chip">Closed</span>`}${l.id === DEMO_ID ? `<span class="tag">Live demo</span>` : ""}</small></span>
+      <span class="t-main"><b>${esc(l.title)}</b><small>${fmtDate(l.createdAtMs)} · ${n} response${n === 1 ? "" : "s"} ${isOpen(l) ? `<span class="live-chip">Open</span>` : `<span class="closed-chip">Closed</span>`}${l.id === DEMO_ID ? `<span class="tag gold">Live demo</span>` : ""}</small></span>
       <span class="t-go">View results →</span>
     </a></li>`;
   }).join("");
@@ -1297,7 +1319,7 @@ function lessonView(id) {
     <nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Classes</a><span>/</span><a href="#/class/${esc(l.classId)}">${esc(c.name)}</a><span>/</span><span>${esc(l.title)}</span></nav>
     <div class="page-head"><div>
       <h1>${esc(l.title)}</h1>
-      <p class="sub">${esc(c.name)} · Year ${esc(c.yearLevel)} · ${esc(c.subject)} · ${fmtDate(l.createdAtMs)}${id === DEMO_ID ? `<span class="tag">Live demo</span>` : ""}</p>
+      <p class="sub">${esc(c.name)} · Year ${esc(c.yearLevel)} · ${esc(c.subject)} · ${fmtDate(l.createdAtMs)}${id === DEMO_ID ? `<span class="tag gold">Live demo</span>` : ""}</p>
       ${l.intention ? `<div class="intent"><span>Learning intention</span>${esc(l.intention)}</div>` : ""}
     </div></div>
     ${share}
