@@ -408,6 +408,16 @@ fieldset.q textarea:focus { outline: none; border-color: var(--focus); }
 .stu-msg h1 { font-size: 22px; }
 .stu-msg p { color: var(--ink-2); margin-top: 8px; }
 
+/* ---------- response simulator ---------- */
+.sim { max-width: 600px; }
+.sim .card { display: flex; flex-direction: column; gap: 12px; }
+.sim .card-sub { margin-bottom: 0; }
+.sim-target { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); }
+.sim-target b { color: var(--ink); }
+.sim-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.sim-row .fld { width: 130px; }
+.sim-status { font-size: 14px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
 /* ---------- toast & tooltip ---------- */
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 90px); background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 650; padding: 11px 20px; border-radius: 999px; z-index: 80; transition: transform .25s ease; max-width: calc(100vw - 32px); text-align: center; }
 .toast.show { transform: translate(-50%, 0); }
@@ -1725,6 +1735,92 @@ async function studentBoot(id) {
 }
 
 /* ==================================================================
+   RESPONSE SIMULATOR  (?t=demoauto) — a presenter tool. Once started it
+   sends a made-up student response to the live demo ticket every 5–10
+   seconds, so the dashboard fills up on screen while you present.
+   ================================================================== */
+const SIM_COMMENTS = ["When to use this method", "How to set out my working", "The last example",
+  "Why my answer was different", "The difference between the two methods", "What the question was asking"];
+function simulatedResponse(rnd) {
+  const r = {};
+  REQUIRED_KEYS.forEach(k => { r[k] = 1 + wpick(rnd, SAMPLE_W.new[k]); });
+  // Weighted so some comments repeat and group together on the dashboard.
+  r.unsure = rnd() < 0.35 ? SIM_COMMENTS[wpick(rnd, [5, 4, 3, 2, 2, 1])] : "";
+  return r;
+}
+async function simulatorBoot() {
+  const app = $("#app"), rnd = mulberry32(Date.now() & 0x7fffffff);
+  let running = false, sent = 0, gen = 0, nextAt = 0, lock = null, ticker = null;
+  // Timers in a worker keep a 5–10 s pace in a background tab, where the
+  // page's own timers can be slowed to once a minute.
+  try { ticker = new Worker(URL.createObjectURL(new Blob(["onmessage = e => setTimeout(() => postMessage(e.data.gen), e.data.ms);"], { type: "text/javascript" }))); }
+  catch (e) { /* workers unavailable: use page timers */ }
+  if (ticker) ticker.onmessage = e => tick(e.data);
+  const wait = (ms, g) => ticker ? ticker.postMessage({ ms, gen: g }) : setTimeout(() => tick(g), ms);
+
+  const shell = inner => `<main class="page sim"><section class="card"><p class="eyebrow">Presenter tool</p><h1>Simulate live responses</h1>${inner}</section></main>`;
+  const max = () => Math.min(200, Math.max(1, parseInt($("#sim-max").value, 10) || 30));
+  const status = msg => {
+    const el = $("#sim-status");
+    if (el) el.textContent = msg || (running ? `Sent ${sent} of ${max()} · next in ${Math.max(0, Math.ceil((nextAt - Date.now()) / 1000))}s` : `Sent ${sent}.`);
+  };
+
+  async function keepAwake(on) {
+    try {
+      if (on && !lock && navigator.wakeLock) { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => { lock = null; }); }
+      if (!on && lock) { await lock.release(); lock = null; }
+    } catch (e) { /* wake lock unsupported or refused */ }
+  }
+  function schedule() { const ms = 5000 + rnd() * 5000; nextAt = Date.now() + ms; wait(ms, ++gen); status(); }
+  function start() {
+    if (sent >= max()) sent = 0;
+    running = true; $("#sim-go").textContent = "Pause"; keepAwake(true); schedule();
+  }
+  function stop(msg) {
+    running = false; gen++; keepAwake(false);
+    $("#sim-go").textContent = sent >= max() ? "Start again" : sent ? "Resume" : "Start";
+    status(msg);
+  }
+  async function tick(g) {
+    if (!running || g !== gen) return;
+    try { await backend.submitResponse(DEMO_ID, simulatedResponse(rnd)); sent++; }
+    catch (e) {
+      if (e && e.code === "permission-denied") { stop("The live demo ticket has closed, so sending stopped."); return; }
+      /* connection hiccup: try again on the next beat */
+    }
+    if (!running || g !== gen) return; // paused while sending
+    if (sent >= max()) stop(`Done: sent ${sent} responses.`); else schedule();
+  }
+
+  async function load() {
+    app.innerHTML = shell(`<p class="card-sub">Checking the live demo ticket…</p>`);
+    let res;
+    try { res = await backend.getLessonPublic(DEMO_ID); } catch (e) { res = { status: "error" }; }
+    if (res.status !== "open") {
+      app.innerHTML = shell(`<p class="card-sub">${res.status === "error"
+        ? "Couldn't reach the live demo ticket. Check your connection."
+        : "There's no open live demo ticket. Create an exit ticket with <b>Use as the live demo ticket</b> ticked, then check again."}</p>
+        <div><button class="btn primary" id="sim-retry">Check again</button></div>`);
+      $("#sim-retry").onclick = load;
+      return;
+    }
+    app.innerHTML = shell(`
+      <p class="card-sub">Sends a made-up student response to the live demo ticket every 5–10 seconds, so its dashboard fills up while you present. Keep this page open, ideally on another device or in its own window.</p>
+      <div class="sim-target">Sending to <b>${esc(res.lesson.title)}</b><span class="live-chip">Open</span></div>
+      <div class="sim-row">
+        <label class="fld"><span>Stop after</span><input id="sim-max" type="number" min="1" max="200" value="30"></label>
+        <button class="btn primary" id="sim-go">Start</button>
+      </div>
+      <p class="sim-status" id="sim-status" role="status">Not started.</p>`);
+    $("#sim-go").onclick = () => running ? stop("Paused.") : start();
+  }
+
+  setInterval(() => { if (running) status(); }, 1000);
+  document.addEventListener("visibilitychange", () => { if (running && document.visibilityState === "visible") keepAwake(true); });
+  load();
+}
+
+/* ==================================================================
    SAMPLE DASHBOARD  (?sample) — signs in as a sample teacher, creating
    the account and its sample classes on the first visit.
    ================================================================== */
@@ -1752,7 +1848,8 @@ async function openSample() {
     return;
   }
   const t = QUERY.get("t");
-  if (t) studentBoot(t);
+  if (t === "demoauto") simulatorBoot();
+  else if (t) studentBoot(t);
   else { if (SAMPLE_MODE) await openSample(); teacherBoot(); }
 })();
 
