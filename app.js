@@ -1414,7 +1414,7 @@ async function openSample() {
     return;
   }
   const t = QUERY.get("t");
-  if (t === "demoauto") simulatorBoot();
+  if (t === "demoauto" || t === "autodemo") simulatorBoot();
   else if (t) studentBoot(t);
   else { if (SAMPLE_MODE) await openSample(); teacherBoot(); }
 })();
