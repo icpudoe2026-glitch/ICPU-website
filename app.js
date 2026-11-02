@@ -26,14 +26,10 @@ const DEMO_ID = "demo";
 
 const QUERY = new URLSearchParams(location.search);
 
-// Temporary public preview. Set to false to restore teacher sign-in.
-// Student ticket and simulator links keep using their existing backend.
-const PUBLIC_TEACHER_PREVIEW = true;
-
 // Open a ready-made teacher dashboard with example classes, kept in the
 // visitor's own browser, so an audience can explore it without an account.
 const SAMPLE_PATH = /\/teacher-sample(?:\/index\.html)?\/?$/.test(location.pathname);
-const SAMPLE_MODE = QUERY.has("sample") || ((SAMPLE_PATH || PUBLIC_TEACHER_PREVIEW) && !QUERY.get("t"));
+const SAMPLE_MODE = QUERY.has("sample") || (SAMPLE_PATH && !QUERY.get("t"));
 
 // Local copies (localhost, or the file opened from disk) always run in demo
 // mode, so editing never needs a Firebase login or touches live data.
@@ -1384,6 +1380,17 @@ async function openSample() {
    BOOT
    ================================================================== */
 (async function boot() {
+  // The default link opens the public preview. Keep root student and
+  // simulator links working; /teacher is the real teacher sign-in.
+  const entryPath = location.pathname.replace(/\/index\.html$/, "/").replace(/\/$/, "");
+  const rootPath = new URL(APP_URL).pathname.replace(/\/$/, "");
+  if (entryPath === rootPath && !QUERY.get("t")) {
+    const target = new URL("teacher-sample/", APP_URL);
+    target.search = location.search;
+    target.hash = location.hash;
+    location.replace(target.href);
+    return;
+  }
   try {
     backend = FIREBASE_CONFIG && !LOCAL_DEMO && !SAMPLE_MODE
       ? await makeFirebaseBackend(FIREBASE_CONFIG)
