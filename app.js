@@ -266,8 +266,9 @@ async function makeFirebaseBackend(cfg) {
         const exp = x.expiresAt.toMillis();
         return { status: exp > Date.now() ? "open" : "closed", lesson: publicLesson({ ...x, id, expiresAtMs: exp }) };
       } catch (e) {
-        // The security rules deny reading a ticket once it has expired.
-        if (e && e.code === "permission-denied") return { status: "closed" };
+        // Rules can deny expired tickets or other reads. A denial alone
+        // doesn't establish that a ticket has closed.
+        if (e && e.code === "permission-denied") return { status: "unavailable" };
         throw e;
       }
     },
@@ -551,6 +552,7 @@ function qrSvg(text) {
 }
 const APP_URL = new URL("./", import.meta.url).href;
 const ticketUrl = id => `${APP_URL}?t=${encodeURIComponent(id)}${SAMPLE_MODE ? "&sample" : ""}`;
+const simulatorUrl = id => `${APP_URL}?t=demoauto&lesson=${encodeURIComponent(id)}${SAMPLE_MODE ? "&sample" : ""}`;
 
 /* ==================================================================
    APP STATE + RENDER LOOP
@@ -799,6 +801,7 @@ function lessonView(id) {
         <div class="share-actions">
           <button class="btn ghost sm" data-act="projector" data-id="${esc(id)}">Show QR full screen</button>
           <a class="btn ghost sm" href="${esc(url)}" target="_blank" rel="noopener">Preview as a student</a>
+          <a class="btn ghost sm" href="${esc(simulatorUrl(id))}" target="_blank" rel="noopener">Simulate responses</a>
           <button class="btn danger-ghost sm" data-act="close-ticket" data-id="${esc(id)}">Close now</button>
         </div>
       </div>
@@ -1293,6 +1296,9 @@ function simulatedResponse(rnd) {
 }
 async function simulatorBoot() {
   const app = $("#app"), rnd = mulberry32(Date.now() & 0x7fffffff);
+  // Legacy ?t=demoauto keeps targeting the pamphlet demo. Ticket dashboard
+  // links select their exact lesson and preserve sample/live storage.
+  const lessonId = QUERY.get("lesson") || DEMO_ID;
   let running = false, sent = 0, gen = 0, nextAt = 0, lock = null, ticker = null;
   // Timers in a worker keep a 5–10 s pace in a background tab, where the
   // page's own timers can be slowed to once a minute.
@@ -1326,9 +1332,9 @@ async function simulatorBoot() {
   }
   async function tick(g) {
     if (!running || g !== gen) return;
-    try { await backend.submitResponse(DEMO_ID, simulatedResponse(rnd)); sent++; }
+    try { await backend.submitResponse(lessonId, simulatedResponse(rnd)); sent++; }
     catch (e) {
-      if (e && e.code === "permission-denied") { stop("The live demo ticket has closed, so sending stopped."); return; }
+      if (e && e.code === "permission-denied") { stop("Sending was denied. The ticket may have closed, or database permissions may be blocking responses."); return; }
       /* connection hiccup: try again on the next beat */
     }
     if (!running || g !== gen) return; // paused while sending
@@ -1338,17 +1344,23 @@ async function simulatorBoot() {
   async function load() {
     app.innerHTML = shell(`<p class="card-sub">Checking the live demo ticket…</p>`);
     let res;
-    try { res = await backend.getLessonPublic(DEMO_ID); } catch (e) { res = { status: "error" }; }
+    try { res = await backend.getLessonPublic(lessonId); } catch (e) { res = { status: "error" }; }
     if (res.status !== "open") {
-      app.innerHTML = shell(`<p class="card-sub">${res.status === "error"
-        ? "Couldn't reach the live demo ticket. Check your connection."
-        : "There's no open live demo ticket. Create an exit ticket with <b>Use as the live demo ticket</b> ticked, then check again."}</p>
+      const message = res.status === "error"
+        ? "Couldn't reach the ticket. Check your connection."
+        : res.status === "unavailable"
+        ? "The database denied access to this ticket. It may have expired, or database permissions may be blocking access."
+        : res.status === "closed"
+        ? "This ticket has closed. Open a new ticket and use its Simulate responses link."
+        : "The selected ticket doesn't exist in this dashboard's data.";
+      app.innerHTML = shell(`<p class="card-sub">${message}</p>
+        <p class="card-sub">Open your ticket in the <a href="${esc(new URL(SAMPLE_MODE ? "teacher-sample/" : "teacher/", APP_URL).href)}">teacher dashboard</a> and choose <b>Simulate responses</b>. The original autodemo link only targets a ticket created with <b>Use as the live demo ticket</b> ticked.</p>
         <div><button class="btn primary" id="sim-retry">Check again</button></div>`);
       $("#sim-retry").onclick = load;
       return;
     }
     app.innerHTML = shell(`
-      <p class="card-sub">Sends a made-up student response to the live demo ticket every 5–10 seconds, so its dashboard fills up while you present. Keep this page open, ideally on another device or in its own window.</p>
+      <p class="card-sub">Sends a made-up student response to the selected ticket every 5–10 seconds, so its dashboard fills up while you present. These responses are saved in the ticket's results. Keep this page open, ideally in its own window.</p>
       <div class="sim-target">Sending to <b>${esc(res.lesson.title)}</b><span class="live-chip">Open</span></div>
       <div class="sim-row">
         <label class="fld"><span>Stop after</span><input id="sim-max" type="number" min="1" max="200" value="30"></label>
