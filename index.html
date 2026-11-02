@@ -485,9 +485,13 @@ const DEMO_ID = "demo";
 
 const QUERY = new URLSearchParams(location.search);
 
-// ?sample opens a ready-made teacher dashboard with example classes, kept in
-// the visitor's own browser, so an audience can explore it without an account.
-const SAMPLE_MODE = QUERY.has("sample");
+// Temporary public preview. Set to false to restore teacher sign-in.
+// Student ticket and simulator links keep using their existing backend.
+const PUBLIC_TEACHER_PREVIEW = true;
+
+// Open a ready-made teacher dashboard with example classes, kept in the
+// visitor's own browser, so an audience can explore it without an account.
+const SAMPLE_MODE = QUERY.has("sample") || (PUBLIC_TEACHER_PREVIEW && !QUERY.get("t"));
 
 // Local copies (localhost, or the file opened from disk) always run in demo
 // mode, so editing never needs a Firebase login or touches live data.
@@ -1074,8 +1078,8 @@ function topbar(r) {
       <a href="#/" class="${onClasses ? "on" : ""}">Classes</a>
       <a href="#/compare" class="${!onClasses ? "on" : ""}">Compare syllabuses</a>
     </nav>
-    <div class="who"><span class="who-name">Signed in as <b>${esc(S.user.name || S.user.email)}</b></span>
-      <button class="btn ghost sm" data-act="signout">Sign out</button></div>
+    <div class="who"><span class="who-name">${SAMPLE_MODE ? "Exploring as" : "Signed in as"} <b>${esc(S.user.name || S.user.email)}</b></span>
+      ${SAMPLE_MODE ? "" : '<button class="btn ghost sm" data-act="signout">Sign out</button>'}</div>
   </header>
   ${backend.mode === "demo" ? `<div class="demo-bar">${SAMPLE_MODE
     ? "Sample dashboard: example classes and responses, saved on this device only. Explore freely."
