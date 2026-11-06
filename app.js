@@ -16,12 +16,19 @@ const FIREBASE_CONFIG = {
   measurementId: "G-4409Z3ESEM"
 };
 
-/* ▶ LIVE DEMO: the pamphlet QR code opens ?t=demo. Ticking "Use as the live
-     demo ticket" when creating an exit ticket saves it under this ID,
-     replacing the previous demo ticket, so that link always opens the latest
-     one. Presenters watch it at #/lesson/demo (signed in as its owner).
-     Between sessions, anyone who scans is told the demo opens during the
-     session. */
+/* ▶ PAMPHLET LINK: the pamphlet QR code opens ?t=demo, a sample exit ticket
+     that's always open. Answers to it aren't saved, so anyone can try it at
+     any time. */
+const SAMPLE_TICKET = {
+  className: "7B Maths", yearLevel: "7", subject: "Mathematics",
+  title: "Fractions of a quantity", intention: "We are learning to find a fraction of a whole number"
+};
+
+/* ▶ LIVE DEMO: ticking "Use as the live demo ticket" when creating an exit
+     ticket saves it under this ID, replacing the previous demo ticket, so the
+     response simulator (?t=demoauto) always fills the latest one. Presenters
+     watch it at #/lesson/demo (signed in as its owner). Its student link adds
+     &live, because ?t=demo on its own opens the sample ticket. */
 const DEMO_ID = "demo";
 
 const QUERY = new URLSearchParams(location.search);
@@ -550,7 +557,7 @@ function qrSvg(text) {
   } catch (e) { return ""; }
 }
 const APP_URL = new URL("./", import.meta.url).href;
-const ticketUrl = id => `${APP_URL}?t=${encodeURIComponent(id)}${SAMPLE_MODE ? "&sample" : ""}`;
+const ticketUrl = id => `${APP_URL}?t=${encodeURIComponent(id)}${id === DEMO_ID ? "&live" : ""}${SAMPLE_MODE ? "&sample" : ""}`;
 
 /* ==================================================================
    APP STATE + RENDER LOOP
@@ -759,7 +766,7 @@ function classView(id) {
         <label class="fld"><span>Learning intention <em>(optional, shown to students)</em></span><input id="t-intent" maxlength="160" placeholder="e.g. We are learning to find a fraction of a whole number"></label>
       </div>
       <p class="hint">You'll get a link and QR code for students. It stops accepting responses ${TICKET_HOURS} hours after you create it.</p>
-      ${SAMPLE_MODE ? "" : `<label class="syl-opt demo-opt"><input type="checkbox" id="t-demo"><span><b>Use as the live demo ticket</b><small>The pamphlet QR code (link ending ?t=${DEMO_ID}) will open this ticket.${demo ? ` This replaces the current demo ticket, "${esc(demo.title)}", and deletes its ${respOf(DEMO_ID).length} response${respOf(DEMO_ID).length === 1 ? "" : "s"}.` : ""}</small></span></label>`}
+      ${SAMPLE_MODE ? "" : `<label class="syl-opt demo-opt"><input type="checkbox" id="t-demo"><span><b>Use as the live demo ticket</b><small>The response simulator (link ending ?t=demoauto) will send to this ticket. The pamphlet QR code still opens the sample questionnaire.${demo ? ` This replaces the current demo ticket, "${esc(demo.title)}", and deletes its ${respOf(DEMO_ID).length} response${respOf(DEMO_ID).length === 1 ? "" : "s"}.` : ""}</small></span></label>`}
       <p class="err-msg" id="t-err" role="alert"></p>
       <div class="form-actions"><button type="button" class="btn ghost" data-act="cancel-ticket">Cancel</button><button class="btn primary" type="submit">Create exit ticket</button></div>
     </form>` : ""}
@@ -1160,7 +1167,7 @@ document.addEventListener("submit", async e => {
     try {
       if (prev) await backend.deleteLesson(DEMO_ID);
       const id = await backend.createLesson(S.user.uid, { classId: c.id, title, intention, className: c.name, yearLevel: c.yearLevel, subject: c.subject }, asDemo ? { id: DEMO_ID } : {});
-      S.ui.newTicket = false; location.hash = `#/lesson/${id}`; toast(asDemo ? "Live demo ticket created. The pamphlet QR code now opens it." : "Exit ticket created. Share the link or QR code."); render();
+      S.ui.newTicket = false; location.hash = `#/lesson/${id}`; toast(asDemo ? "Live demo ticket created. The response simulator now sends to it." :"Exit ticket created. Share the link or QR code."); render();
     } catch (err) {
       $("#t-err").textContent = asDemo
         ? "Couldn't make this the demo ticket. If the current demo ticket belongs to another account, delete it from that account first."
@@ -1200,27 +1207,30 @@ function teacherBoot() {
    ================================================================== */
 async function studentBoot(id) {
   const app = $("#app");
-  const shell = inner => `<div class="stu"><div class="stu-top">${LOGO}<span>Lesson Pulse</span><span class="anon">Anonymous exit ticket</span></div>${inner}</div>`;
+  const isDemo = id === DEMO_ID, isSample = isDemo && !QUERY.has("live");
+  const shell = inner => `<div class="stu"><div class="stu-top">${LOGO}<span>Lesson Pulse</span><span class="anon">${isSample ? "Sample" : "Anonymous"} exit ticket</span></div>${inner}</div>`;
   const msg = (icon, cls, h, p) => shell(`<section class="card stu-msg"><div class="big ${cls}" aria-hidden="true">${icon}</div><h1>${h}</h1><p>${p}</p></section>`);
   const closedMsg = () => msg("⏱", "no", "This exit ticket has closed", `Exit tickets accept responses for ${TICKET_HOURS} hours after your teacher creates them. Ask your teacher for a new link.`);
-  const isDemo = id === DEMO_ID;
-  const demoMsg = () => msg("⏱", "no", "The live demo isn't open right now", "It opens during the Lesson Pulse session. Scan this code again then.");
 
-  let res;
-  try { res = await backend.getLessonPublic(id); }
-  catch (e) { app.innerHTML = msg("!", "no", "Couldn't load the exit ticket", "Check your internet connection, then reload this page."); return; }
-  if (res.status === "missing" && backend.mode === "demo" && !isDemo) {
-    app.innerHTML = msg("!", "no", "This page is in demo mode", "Demo mode only works in the one browser where the exit ticket was created, so this device can't open it. Your teacher needs to put the Firebase-connected version online.");
-    return;
+  // The sample ticket is built in and never closes, so it skips the database.
+  let L = SAMPLE_TICKET, doneKey;
+  if (!isSample) {
+    let res;
+    try { res = await backend.getLessonPublic(id); }
+    catch (e) { app.innerHTML = msg("!", "no", "Couldn't load the exit ticket", "Check your internet connection, then reload this page."); return; }
+    if (res.status === "missing" && backend.mode === "demo" && !isDemo) {
+      app.innerHTML = msg("!", "no", "This page is in demo mode", "Demo mode only works in the one browser where the exit ticket was created, so this device can't open it. Your teacher needs to put the Firebase-connected version online.");
+      return;
+    }
+    if (res.status !== "open") { app.innerHTML = closedMsg(); return; }
+    // The demo ID is reused every session, so remember which demo ticket was answered.
+    doneKey = "lp3-done-" + id + (isDemo ? "-" + res.lesson.expiresAtMs : "");
+    let done = false;
+    try { done = localStorage.getItem(doneKey) === "1"; } catch (e) { /* storage blocked */ }
+    if (done) { app.innerHTML = msg("✓", "ok", "You've already answered", "Thanks! Your response to this exit ticket is already in."); return; }
+    L = res.lesson;
   }
-  if (res.status !== "open") { app.innerHTML = isDemo ? demoMsg() : closedMsg(); return; }
-  // The demo ID is reused every session, so remember which demo ticket was answered.
-  const doneKey = "lp3-done-" + id + (isDemo ? "-" + res.lesson.expiresAtMs : "");
-  let done = false;
-  try { done = localStorage.getItem(doneKey) === "1"; } catch (e) { /* storage blocked */ }
-  if (done) { app.innerHTML = msg("✓", "ok", "You've already answered", "Thanks! Your response to this exit ticket is already in."); return; }
 
-  const L = res.lesson;
   const qs = QUESTIONS.map((q, i) => {
     if (q.type === "text") return `<fieldset class="q"><legend><span class="qn">${i + 1}</span><span>${esc(q.text)}<small>${esc(q.hint)}</small></span></legend>
       <textarea id="s-unsure" maxlength="280" placeholder="e.g. I get confused when the fraction is bigger than 1"></textarea></fieldset>`;
@@ -1233,7 +1243,9 @@ async function studentBoot(id) {
       <p class="eyebrow">${esc(L.className)}${L.yearLevel ? ` · Year ${esc(L.yearLevel)}` : ""}${L.subject ? ` · ${esc(L.subject)}` : ""}</p>
       <h1>${esc(L.title)}</h1>
       ${L.intention ? `<div class="intent"><span>Today's learning intention</span>${esc(L.intention)}</div>` : ""}
-      <p class="note">Answer honestly. Your teacher uses this to improve their lessons, and your name isn't recorded. Takes about a minute.</p>
+      <p class="note">${isSample
+        ? "This is a sample exit ticket, so your answers aren't saved. Answer it the way a student would at the end of a lesson. Takes about a minute."
+        : "Answer honestly. Your teacher uses this to improve their lessons, and your name isn't recorded. Takes about a minute."}</p>
     </section>
     <form id="f-stu" novalidate>${qs}
       <div class="stu-submit"><p class="err-msg" id="s-err" role="alert"></p><button class="btn primary wide" type="submit">Send my answers</button></div>
@@ -1260,6 +1272,11 @@ async function studentBoot(id) {
       fs.classList.add("missing");
       fs.scrollIntoView({ behavior: "smooth", block: "center" });
       $("#s-err").textContent = "Please rephrase your last answer without that language, or leave it blank.";
+      return;
+    }
+    if (isSample) {
+      app.innerHTML = msg("✓", "ok", "Thanks for trying the sample", "Your answers weren't saved. In a real lesson, your teacher sees the whole class's answers together and uses them to plan the next lesson.");
+      window.scrollTo(0, 0);
       return;
     }
     const btn = e.target.querySelector("button[type=submit]");
@@ -1391,6 +1408,8 @@ async function openSample() {
     location.replace(target.href);
     return;
   }
+  // The sample ticket needs no database, so it opens even if Firebase can't load.
+  if (QUERY.get("t") === DEMO_ID && !QUERY.has("live")) { studentBoot(DEMO_ID); return; }
   try {
     backend = FIREBASE_CONFIG && !LOCAL_DEMO && !SAMPLE_MODE
       ? await makeFirebaseBackend(FIREBASE_CONFIG)
